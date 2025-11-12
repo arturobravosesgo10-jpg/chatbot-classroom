@@ -1,0 +1,4 @@
+flask
+flask-cors
+google-cloud-dialogflow
+python-dotenv

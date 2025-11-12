@@ -1,0 +1,23 @@
+SI NO TIENES LAS DEPENDENCIAS, HAY QUE INSTALARLAS
+pip install flask flask-cors firebase-admin google-api-python-client google-auth google-cloud-dialogflow
+
+O ESTE TAMBIEN
+pip install -r requirements.txt
+
+CREA EL ENTORN VIRTUAL
+python -m venv venv
+
+ACTIVA EL ENTORO VIRTUAL
+.\.venv\Scripts\activate
+
+ENTRAR AL BACKEND
+cd backend
+
+INICIAR EL BACKEND
+python app.py
+
+ASI SE DEBE VER 
+(.venv) PS C:\chatbot -web\backend> python app.py
+
+EN NGROK DEBES PONER ESTA DIRECCION
+ngrok http 3000
