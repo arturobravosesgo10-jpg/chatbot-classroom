@@ -13,30 +13,24 @@ from google.auth.transport.requests import Request
 from google.cloud import dialogflow_v2 as dialogflow
 
 # -------------------------
-# 🔹 CONFIGURACIÓN INICIAL
+# 🔹 RESTAURAR CREDENCIALES DIALOGFLOW
 # -------------------------
-
-# ✅ Restaurar token desde variable de entorno (Render)
-token_base64 = os.getenv("TOKEN_PKL_BASE64")
-if token_base64:
-    try:
-        token_data = base64.b64decode(token_base64)
-        with open("token_secondary.pkl", "wb") as f:
-            f.write(token_data)
-        print("✅ Token restaurado correctamente desde variable de entorno.")
-    except Exception as e:
-        print(f"⚠️ Error al restaurar token: {e}")
+token_b64 = os.getenv("TOKEN_PKL_BASE64")
+if token_b64:
+    token_path = "/tmp/dialogflow.json"  # Archivo temporal en Render
+    with open(token_path, "wb") as f:
+        f.write(base64.b64decode(token_b64))
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
+    print("✅ Token de Dialogflow restaurado correctamente desde variable de entorno.")
 else:
-    print("⚠️ No se encontró TOKEN_PKL_BASE64 en el entorno. Usa token local si existe.")
+    raise Exception("❌ No se encontró la variable TOKEN_PKL_BASE64.")
 
-# Dialogflow (archivo que sí puede ir en repo)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "dialogflow.json"
-
-# 🔐 Firebase desde variable de entorno en Render
+# -------------------------
+# 🔐 FIREBASE
+# -------------------------
 firebase_config_json = os.getenv("FIREBASE_CONFIG")
-
 if not firebase_config_json:
-    raise Exception("❌ No se encontró la variable de entorno FIREBASE_CONFIG en Render")
+    raise Exception("❌ No se encontró la variable FIREBASE_CONFIG")
 
 try:
     cred_dict = json.loads(firebase_config_json)
@@ -54,22 +48,17 @@ app = Flask(__name__, template_folder="templates")
 CORS(app)
 
 # -------------------------
-# 🔹 Google Classroom
+# 🔹 GOOGLE CLASSROOM
 # -------------------------
 TOKEN_FILE = 'token_secondary.pkl'
-if not os.path.exists(TOKEN_FILE):
-    raise Exception("❌ No se encontró token_secondary.pkl (ni variable TOKEN_PKL_BASE64)")
-
 with open(TOKEN_FILE, 'rb') as token_file:
     creds = pickle.load(token_file)
-
 if creds.expired and creds.refresh_token:
     creds.refresh(Request())
-
 service = build('classroom', 'v1', credentials=creds)
 
 # -------------------------
-# 🔹 Dialogflow
+# 🔹 DIALOGFLOW
 # -------------------------
 PROJECT_ID = "chatbot-web-n9tj"
 SESSION_ID = "arturo123"
@@ -77,7 +66,7 @@ session_client = dialogflow.SessionsClient()
 session = session_client.session_path(PROJECT_ID, SESSION_ID)
 
 # -------------------------
-# 🏠 SERVIR FRONTEND (index.html)
+# 🏠 SERVIR FRONTEND
 # -------------------------
 @app.route("/")
 def home():
@@ -94,7 +83,7 @@ def get_tareas():
     return jsonify(resultado)
 
 # -------------------------
-# ➕ AGREGAR TAREA MANUALMENTE
+# ➕ AGREGAR TAREA
 # -------------------------
 @app.route("/agregar_tarea", methods=["POST"])
 def agregar_tarea():
@@ -122,11 +111,11 @@ def list_classes():
         return jsonify({"error": str(e)})
 
 # -------------------------
-# 🔄 SINCRONIZAR UNA CLASE
+# 🔄 SINCRONIZAR CLASE
 # -------------------------
 @app.route("/sync_classroom", methods=["GET"])
 def sync_classroom():
-    course_id = "820099525378"  # Clase "To do list Arturo"
+    course_id = "820099525378"
     try:
         curso = service.courses().get(id=course_id).execute()
         coursework = service.courses().courseWork().list(courseId=course_id).execute()
@@ -170,7 +159,7 @@ def chat():
     return jsonify({"respuesta": response.query_result.fulfillment_text})
 
 # -------------------------
-# 🔄 SINCRONIZACIÓN AUTOMÁTICA CLASSROOM ↔ FIREBASE
+# 🔄 SINCRONIZACIÓN AUTOMÁTICA
 # -------------------------
 SYNC_INTERVAL = 30  # segundos
 
@@ -185,6 +174,7 @@ def sync_classroom_automaticamente():
             firebase_docs = db.collection('tareas').stream()
             firebase_ids = {doc.id for doc in firebase_docs}
 
+            # Agregar nuevas
             total_nuevas = 0
             for work in tasks:
                 if work['id'] not in firebase_ids:
@@ -195,6 +185,7 @@ def sync_classroom_automaticamente():
                     })
                     total_nuevas += 1
 
+            # Eliminar viejas
             total_eliminadas = 0
             for fid in firebase_ids:
                 if fid not in classroom_ids:
@@ -209,7 +200,6 @@ def sync_classroom_automaticamente():
 
         time.sleep(SYNC_INTERVAL)
 
-# Iniciar hilo de sincronización
 threading.Thread(target=sync_classroom_automaticamente, daemon=True).start()
 
 # -------------------------
