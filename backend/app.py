@@ -3,6 +3,7 @@ import json
 import pickle
 import threading
 import time
+import base64
 import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, jsonify, request, render_template
@@ -14,6 +15,19 @@ from google.cloud import dialogflow_v2 as dialogflow
 # -------------------------
 # 🔹 CONFIGURACIÓN INICIAL
 # -------------------------
+
+# ✅ Restaurar token desde variable de entorno (Render)
+token_base64 = os.getenv("TOKEN_PKL_BASE64")
+if token_base64:
+    try:
+        token_data = base64.b64decode(token_base64)
+        with open("token_secondary.pkl", "wb") as f:
+            f.write(token_data)
+        print("✅ Token restaurado correctamente desde variable de entorno.")
+    except Exception as e:
+        print(f"⚠️ Error al restaurar token: {e}")
+else:
+    print("⚠️ No se encontró TOKEN_PKL_BASE64 en el entorno. Usa token local si existe.")
 
 # Dialogflow (archivo que sí puede ir en repo)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "dialogflow.json"
@@ -43,10 +57,15 @@ CORS(app)
 # 🔹 Google Classroom
 # -------------------------
 TOKEN_FILE = 'token_secondary.pkl'
+if not os.path.exists(TOKEN_FILE):
+    raise Exception("❌ No se encontró token_secondary.pkl (ni variable TOKEN_PKL_BASE64)")
+
 with open(TOKEN_FILE, 'rb') as token_file:
     creds = pickle.load(token_file)
+
 if creds.expired and creds.refresh_token:
     creds.refresh(Request())
+
 service = build('classroom', 'v1', credentials=creds)
 
 # -------------------------
@@ -166,7 +185,6 @@ def sync_classroom_automaticamente():
             firebase_docs = db.collection('tareas').stream()
             firebase_ids = {doc.id for doc in firebase_docs}
 
-            # Agregar nuevas
             total_nuevas = 0
             for work in tasks:
                 if work['id'] not in firebase_ids:
@@ -177,7 +195,6 @@ def sync_classroom_automaticamente():
                     })
                     total_nuevas += 1
 
-            # Eliminar viejas
             total_eliminadas = 0
             for fid in firebase_ids:
                 if fid not in classroom_ids:
