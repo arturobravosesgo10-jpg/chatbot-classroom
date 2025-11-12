@@ -12,10 +12,12 @@ from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google.cloud import dialogflow_v2 as dialogflow
 
+print("DIALOGFLOW_BASE64:", "✅ encontrada" if os.getenv("DIALOGFLOW_BASE64") else "❌ NO encontrada")
+
 # -------------------------
 # 🔹 RESTAURAR CREDENCIALES DIALOGFLOW
 # -------------------------
-token_b64 = os.getenv("TOKEN_PKL_BASE64")
+token_b64 = os.getenv("DIALOGFLOW_BASE64")  # <-- Cambiado aquí
 if token_b64:
     token_path = "/tmp/dialogflow.json"  # Archivo temporal en Render
     with open(token_path, "wb") as f:
@@ -23,7 +25,7 @@ if token_b64:
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = token_path
     print("✅ Token de Dialogflow restaurado correctamente desde variable de entorno.")
 else:
-    raise Exception("❌ No se encontró la variable TOKEN_PKL_BASE64.")
+    raise Exception("❌ No se encontró la variable DIALOGFLOW_BASE64.")
 
 # -------------------------
 # 🔐 FIREBASE
@@ -42,20 +44,28 @@ except Exception as e:
 db = firestore.client()
 
 # -------------------------
+# 🔹 GOOGLE CLASSROOM
+# -------------------------
+token_classroom_b64 = os.getenv("TOKEN_CLASSROOM_BASE64")
+if token_classroom_b64:
+    token_classroom_path = "/tmp/token_classroom.pkl"
+    with open(token_classroom_path, "wb") as f:
+        f.write(base64.b64decode(token_classroom_b64))
+    with open(token_classroom_path, 'rb') as token_file:
+        creds = pickle.load(token_file)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    service = build('classroom', 'v1', credentials=creds)
+    print("✅ Token de Classroom restaurado correctamente desde variable de entorno.")
+else:
+    raise Exception("❌ No se encontró la variable TOKEN_CLASSROOM_BASE64.")
+
+# -------------------------
+# -------------------------
 # ⚙️ APP FLASK
 # -------------------------
 app = Flask(__name__, template_folder="templates")
 CORS(app)
-
-# -------------------------
-# 🔹 GOOGLE CLASSROOM
-# -------------------------
-TOKEN_FILE = 'token_secondary.pkl'
-with open(TOKEN_FILE, 'rb') as token_file:
-    creds = pickle.load(token_file)
-if creds.expired and creds.refresh_token:
-    creds.refresh(Request())
-service = build('classroom', 'v1', credentials=creds)
 
 # -------------------------
 # 🔹 DIALOGFLOW
