@@ -3,3 +3,4 @@ flask-cors
 google-cloud-dialogflow
 python-dotenv
 firebase-admin
+google-api-python-client
