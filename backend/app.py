@@ -1,4 +1,5 @@
 import os
+import json
 import pickle
 import threading
 import time
@@ -13,12 +14,28 @@ from google.cloud import dialogflow_v2 as dialogflow
 # -------------------------
 # 🔹 CONFIGURACIÓN INICIAL
 # -------------------------
+
+# Dialogflow (archivo que sí puede ir en repo)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "dialogflow.json"
 
-cred = credentials.Certificate("firebase.json")
-firebase_admin.initialize_app(cred)
+# 🔐 Firebase desde variable de entorno en Render
+firebase_config_json = os.getenv("FIREBASE_CONFIG")
+
+if not firebase_config_json:
+    raise Exception("❌ No se encontró la variable de entorno FIREBASE_CONFIG en Render")
+
+try:
+    cred_dict = json.loads(firebase_config_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+except Exception as e:
+    raise Exception(f"Error al inicializar Firebase: {e}")
+
 db = firestore.client()
 
+# -------------------------
+# ⚙️ APP FLASK
+# -------------------------
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
@@ -90,7 +107,7 @@ def list_classes():
 # -------------------------
 @app.route("/sync_classroom", methods=["GET"])
 def sync_classroom():
-    course_id = "820099525378"  # Tu clase "To do list Arturo"
+    course_id = "820099525378"  # Clase "To do list Arturo"
     try:
         curso = service.courses().get(id=course_id).execute()
         coursework = service.courses().courseWork().list(courseId=course_id).execute()
@@ -182,4 +199,5 @@ threading.Thread(target=sync_classroom_automaticamente, daemon=True).start()
 # 🚀 EJECUTAR SERVIDOR
 # -------------------------
 if __name__ == "__main__":
-    app.run(debug=True, port=3000)
+    port = int(os.environ.get("PORT", 3000))
+    app.run(host="0.0.0.0", port=port)
